@@ -2,6 +2,47 @@
 
 This project provides tools for enhancing micro CT images of kidney stones and correlating density differences with Raman spectroscopy measurements. The analysis focuses on highlighting differences between crystalline whewellite (light areas) and bacterial regions (dark areas).
 
+## Project Structure
+
+```
+CT_Raman/
+├── src/                          # Source code
+│   ├── analysis/                # Core analysis modules
+│   │   ├── ct_enhancement.py
+│   │   ├── ct_raman_correlation.py
+│   │   ├── dog_stone_isolation.py
+│   │   ├── enhanced_stone_analysis.py
+│   │   └── stone_layer_analysis.py
+│   ├── interactive/             # Interactive tools & applications
+│   │   ├── interactive_annotation.py
+│   │   ├── interactive_stone_tuning.py
+│   │   ├── stone_analysis_app.py
+│   │   ├── stone_analysis_standalone.py
+│   │   └── stone_analysis_widget.py
+│   └── utils/                   # Utilities & diagnostics
+│       ├── compare_isolation_methods.py
+│       └── threshold_diagnostic.py
+├── data/                        # Data files (CSVs, pickles)
+│   ├── line_scan_*.csv
+│   ├── *_metadata.pkl
+│   └── optimized_stone_settings*.pkl
+├── notebooks/                   # Jupyter notebooks
+├── reports/                     # Generated analysis reports
+│   ├── annotation_based_report.txt
+│   ├── ct_raman_correlation_report.txt
+│   ├── enhanced_stone_report.txt
+│   └── stone_layer_report.txt
+├── tests/                       # Test scripts
+│   ├── run_stone_analysis.py
+│   └── simple_test.py
+├── docs/                        # Documentation
+│   └── README_widget.md
+├── images/                      # Image outputs
+├── requirements.txt             # Main dependencies
+├── requirements_jupyter.txt     # Jupyter-specific dependencies
+└── requirements_standalone.txt  # Standalone app dependencies
+```
+
 ## Features
 
 ### CT Image Enhancement (`ct_enhancement.py`)
@@ -28,7 +69,7 @@ pip install -r requirements.txt
 ### Basic CT Enhancement
 
 ```python
-from ct_enhancement import CTImageAnalyzer
+from src.analysis.ct_enhancement import CTImageAnalyzer
 
 # Initialize analyzer
 analyzer = CTImageAnalyzer('slice_1092.tif', 'DensityMeasure.png')
@@ -48,7 +89,7 @@ analyzer.analyze_density_distribution()
 ### Advanced Correlation Analysis
 
 ```python
-from ct_raman_correlation import CTRamanCorrelator
+from src.analysis.ct_raman_correlation import CTRamanCorrelator
 
 # Initialize correlator with CT analyzer
 correlator = CTRamanCorrelator(analyzer)
@@ -68,8 +109,18 @@ correlator.generate_correlation_report()
 ### Quick Start - Run Complete Analysis
 
 ```bash
-python ct_enhancement.py
-python ct_raman_correlation.py
+python src/analysis/ct_enhancement.py
+python src/analysis/ct_raman_correlation.py
+```
+
+### Interactive Tools
+
+```bash
+# Run the standalone analysis application
+python src/interactive/stone_analysis_standalone.py
+
+# Run the interactive widget
+python src/interactive/stone_analysis_widget.py
 ```
 
 ## Enhancement Techniques
