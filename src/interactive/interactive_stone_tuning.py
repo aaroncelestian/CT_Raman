@@ -672,7 +672,24 @@ Tips:
 
 def main():
     """Run the interactive threshold tuner with optimized starting values"""
-    tuner = InteractiveStoneThresholdTuner('slice_1092.tif')
+    from tkinter import Tk, filedialog
+    root = Tk()
+    root.withdraw()
+    ct_image_path = filedialog.askopenfilename(
+        title="Select CT Image File",
+        filetypes=[
+            ("TIFF files", "*.tif *.tiff"),
+            ("All image files", "*.tif *.tiff *.png *.jpg *.jpeg"),
+            ("All files", "*.*")
+        ]
+    )
+    root.destroy()
+    
+    if not ct_image_path:
+        print("❌ No image file selected. Exiting.")
+        return None
+    
+    tuner = InteractiveStoneThresholdTuner(ct_image_path)
     return tuner
 
 if __name__ == "__main__":

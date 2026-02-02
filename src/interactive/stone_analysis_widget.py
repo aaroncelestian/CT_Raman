@@ -19,16 +19,34 @@ import pandas as pd
 from matplotlib.patches import Circle
 
 class StoneAnalysisWidget:
-    def __init__(self):
+    def __init__(self, ct_image_path=None):
         """Initialize the Stone Analysis Widget Interface"""
         # Load CT image
+        if ct_image_path is None:
+            from tkinter import Tk, filedialog
+            root = Tk()
+            root.withdraw()
+            ct_image_path = filedialog.askopenfilename(
+                title="Select CT Image File",
+                filetypes=[
+                    ("TIFF files", "*.tif *.tiff"),
+                    ("All image files", "*.tif *.tiff *.png *.jpg *.jpeg"),
+                    ("All files", "*.*")
+                ]
+            )
+            root.destroy()
+            
+            if not ct_image_path:
+                print("❌ No image file selected. Exiting.")
+                return
+        
         try:
-            self.ct_image = np.array(Image.open('slice_1092.tif'))
+            self.ct_image = np.array(Image.open(ct_image_path))
             self.ct_shape = self.ct_image.shape
-            print(f"✅ CT image loaded: {self.ct_shape}")
-        except FileNotFoundError:
-            print("❌ Error: Could not find 'slice_1092.tif'")
-            print("Please ensure the CT image file is in the current directory.")
+            print(f"✅ CT image loaded: {ct_image_path}")
+            print(f"   Shape: {self.ct_shape}")
+        except Exception as e:
+            print(f"❌ Error loading image: {e}")
             return
         
         # Optimized default parameters

@@ -249,8 +249,44 @@ class CTImageAnalyzer:
         print("   - Quantitative assessment of correlation accuracy")
 
 def main():
+    # Prompt user to select images
+    from tkinter import Tk, filedialog
+    root = Tk()
+    root.withdraw()
+    
+    print("Please select the CT image file...")
+    ct_image_path = filedialog.askopenfilename(
+        title="Select CT Image File",
+        filetypes=[
+            ("TIFF files", "*.tif *.tiff"),
+            ("All image files", "*.tif *.tiff *.png *.jpg *.jpeg"),
+            ("All files", "*.*")
+        ]
+    )
+    
+    if not ct_image_path:
+        print("❌ No CT image selected. Exiting.")
+        root.destroy()
+        return
+    
+    print("Please select the density reference image (optional, press Cancel to skip)...")
+    density_ref_path = filedialog.askopenfilename(
+        title="Select Density Reference Image (Optional)",
+        filetypes=[
+            ("PNG files", "*.png"),
+            ("All image files", "*.png *.jpg *.jpeg *.tif *.tiff"),
+            ("All files", "*.*")
+        ]
+    )
+    
+    root.destroy()
+    
+    if not density_ref_path:
+        density_ref_path = None
+        print("No density reference image selected. Continuing without it.")
+    
     # Initialize the analyzer
-    analyzer = CTImageAnalyzer('slice_1092.tif', 'DensityMeasure.png')
+    analyzer = CTImageAnalyzer(ct_image_path, density_ref_path)
     
     # Load and analyze the CT image
     print("Loading CT image...")

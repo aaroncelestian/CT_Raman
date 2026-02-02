@@ -7,8 +7,28 @@ import os
 def diagnose_thresholds():
     """Diagnostic tool to investigate threshold issues"""
     
+    from tkinter import Tk, filedialog
+    
+    root = Tk()
+    root.withdraw()
+    
+    print("Please select the CT image file...")
+    ct_image_path = filedialog.askopenfilename(
+        title="Select CT Image File",
+        filetypes=[
+            ("TIFF files", "*.tif *.tiff"),
+            ("All image files", "*.tif *.tiff *.png *.jpg *.jpeg"),
+            ("All files", "*.*")
+        ]
+    )
+    root.destroy()
+    
+    if not ct_image_path:
+        print(" No image file selected. Exiting.")
+        return
+    
     # Load CT image
-    ct_image = np.array(Image.open('slice_1092.tif'))
+    ct_image = np.array(Image.open(ct_image_path))
     print(f"CT Image: {ct_image.shape}, range: {ct_image.min()} - {ct_image.max()}")
     
     annotations = None

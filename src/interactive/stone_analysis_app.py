@@ -95,14 +95,21 @@ class StoneAnalysisApp:
     
     def load_ct_image(self):
         """Load the CT image"""
-        try:
-            ct_image = np.array(Image.open('slice_1092.tif'))
-            st.session_state.ct_image = ct_image
-            st.session_state.ct_shape = ct_image.shape
-            st.session_state.ct_min = ct_image.min()
-            st.session_state.ct_max = ct_image.max()
-        except FileNotFoundError:
-            st.error("Could not find slice_1092.tif. Please ensure the file is in the working directory.")
+        uploaded_file = st.file_uploader("Upload CT Image", type=['tif', 'tiff', 'png', 'jpg', 'jpeg'])
+        
+        if uploaded_file is not None:
+            try:
+                ct_image = np.array(Image.open(uploaded_file))
+                st.session_state.ct_image = ct_image
+                st.session_state.ct_shape = ct_image.shape
+                st.session_state.ct_min = ct_image.min()
+                st.session_state.ct_max = ct_image.max()
+                st.success(f"✅ CT image loaded: {ct_image.shape}")
+            except Exception as e:
+                st.error(f"Error loading image: {e}")
+                st.stop()
+        else:
+            st.info("Please upload a CT image file to begin analysis.")
             st.stop()
     
     def apply_dog_filter(self):

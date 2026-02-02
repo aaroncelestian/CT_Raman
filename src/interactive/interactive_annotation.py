@@ -418,7 +418,24 @@ class AnnotationBasedAnalyzer:
 
 def main():
     """Main function to run interactive annotation"""
-    annotator = InteractiveAnnotator('slice_1092.tif')
+    from tkinter import Tk, filedialog
+    root = Tk()
+    root.withdraw()
+    ct_image_path = filedialog.askopenfilename(
+        title="Select CT Image File",
+        filetypes=[
+            ("TIFF files", "*.tif *.tiff"),
+            ("All image files", "*.tif *.tiff *.png *.jpg *.jpeg"),
+            ("All files", "*.*")
+        ]
+    )
+    root.destroy()
+    
+    if not ct_image_path:
+        print("❌ No image file selected. Exiting.")
+        return None
+    
+    annotator = InteractiveAnnotator(ct_image_path)
     
     print("Interactive Annotation Tool")
     print("=" * 30)

@@ -690,8 +690,27 @@ Features:
 
 def main():
     """Main function to run DoG-based stone isolation"""
+    from tkinter import Tk, filedialog
+    root = Tk()
+    root.withdraw()
+    
+    print("Please select the CT image file...")
+    ct_image_path = filedialog.askopenfilename(
+        title="Select CT Image File",
+        filetypes=[
+            ("TIFF files", "*.tif *.tiff"),
+            ("All image files", "*.tif *.tiff *.png *.jpg *.jpeg"),
+            ("All files", "*.*")
+        ]
+    )
+    root.destroy()
+    
+    if not ct_image_path:
+        print("❌ No image file selected. Exiting.")
+        return
+    
     # Initialize isolator
-    isolator = DoGStoneIsolator('slice_1092.tif')
+    isolator = DoGStoneIsolator(ct_image_path)
     
     # Run complete analysis
     results = isolator.run_complete_dog_analysis()

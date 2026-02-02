@@ -554,10 +554,45 @@ Method: {'Annotation-based' if self.composition_threshold else 'Adaptive'}
 
 def main():
     """Main function to run enhanced stone analysis"""
+    from tkinter import Tk, filedialog
+    root = Tk()
+    root.withdraw()
+    
+    print("Please select the CT image file...")
+    ct_image_path = filedialog.askopenfilename(
+        title="Select CT Image File",
+        filetypes=[
+            ("TIFF files", "*.tif *.tiff"),
+            ("All image files", "*.tif *.tiff *.png *.jpg *.jpeg"),
+            ("All files", "*.*")
+        ]
+    )
+    
+    if not ct_image_path:
+        print("❌ No CT image selected. Exiting.")
+        root.destroy()
+        return
+    
+    print("Please select the Raman reference image (optional, press Cancel to skip)...")
+    raman_ref_path = filedialog.askopenfilename(
+        title="Select Raman Reference Image (Optional)",
+        filetypes=[
+            ("PNG files", "*.png"),
+            ("All image files", "*.png *.jpg *.jpeg"),
+            ("All files", "*.*")
+        ]
+    )
+    
+    root.destroy()
+    
+    if not raman_ref_path:
+        raman_ref_path = None
+        print("No Raman reference selected. Continuing without it.")
+    
     # Initialize analyzer
     analyzer = EnhancedStoneAnalyzer(
-        ct_image_path='slice_1092.tif',
-        raman_reference_path='DensityMeasure.png'
+        ct_image_path=ct_image_path,
+        raman_reference_path=raman_ref_path
     )
     
     # Run complete analysis

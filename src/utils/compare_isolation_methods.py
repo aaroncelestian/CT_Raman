@@ -6,13 +6,32 @@ from dog_stone_isolation import DoGStoneIsolator
 
 def compare_isolation_methods():
     """Compare intensity-threshold vs DoG-based stone isolation"""
+    from tkinter import Tk, filedialog
+    
+    root = Tk()
+    root.withdraw()
+    
+    print("Please select the CT image file...")
+    ct_image_path = filedialog.askopenfilename(
+        title="Select CT Image File",
+        filetypes=[
+            ("TIFF files", "*.tif *.tiff"),
+            ("All image files", "*.tif *.tiff *.png *.jpg *.jpeg"),
+            ("All files", "*.*")
+        ]
+    )
+    root.destroy()
+    
+    if not ct_image_path:
+        print("❌ No image file selected. Exiting.")
+        return None, None
     
     print("Comparing Stone Isolation Methods...")
     print("=" * 50)
     
     # Method 1: Enhanced (intensity-threshold based)
     print("\nMethod 1: Intensity-Threshold Based...")
-    enhanced_analyzer = EnhancedStoneAnalyzer('slice_1092.tif')
+    enhanced_analyzer = EnhancedStoneAnalyzer(ct_image_path)
     enhanced_analyzer.load_ct_image()
     enhanced_analyzer.load_annotation_thresholds()
     enhanced_analyzer.remove_air_preprocessing()
@@ -20,7 +39,7 @@ def compare_isolation_methods():
     
     # Method 2: DoG-based
     print("\nMethod 2: DoG Edge-Detection Based...")
-    dog_isolator = DoGStoneIsolator('slice_1092.tif')
+    dog_isolator = DoGStoneIsolator(ct_image_path)
     dog_isolator.load_ct_image()
     dog_isolator.load_composition_threshold()
     dog_isolator.apply_dog_filter()

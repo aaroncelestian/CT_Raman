@@ -1,0 +1,23 @@
+Enhanced Stone Composition Analysis Report
+==================================================
+
+Preprocessing (Air Removal):
+------------------------------
+Air threshold used: 6949.1
+Air pixels removed: 4,412
+Stone pixels retained: 5,033,032
+Air removal efficiency: 0.1%
+
+Stone Composition Analysis:
+------------------------------
+Whewellite-dominant regions: 24.61% (1,238,731 pixels)
+Bacteria-dominant regions: 75.39% (3,794,301 pixels)
+Total stone area analyzed: 5,033,032 pixels
+Composition threshold: 11283.5 (annotation-based)
+
+Methodology:
+---------------
+1. Automatic air removal using intensity thresholding
+2. Stone boundary identification and cleanup
+3. Compositional analysis within stone regions only
+4. Annotation-based calibration for whewellite/bacteria classification

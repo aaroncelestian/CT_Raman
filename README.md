@@ -43,6 +43,50 @@ CT_Raman/
 └── requirements_standalone.txt  # Standalone app dependencies
 ```
 
+## Quick Start
+
+The easiest way to run any tool in this project is using the **GUI launcher**:
+
+```bash
+python launch.py
+```
+
+This will open a graphical interface with:
+- **Tabbed categories** - Analysis Tools, Interactive Tools, Utilities, and Tests
+- **Easy selection** - Click or double-click to launch any tool
+- **Real-time output log** - See script output directly in the launcher
+- **Professional interface** - Clean, organized, and user-friendly
+
+Simply select a tool from the list and click "Launch Selected" or double-click the tool name.
+
+## Main Workflow
+
+### Overview
+This application analyzes kidney stone CT images to identify and quantify different compositional regions, correlating CT density with material composition (bacterial biofilm vs. crystalline whewellite).
+
+### Typical Analysis Pipeline
+
+1. **Load CT Image** → The application loads a micro-CT slice of a kidney stone
+2. **Stone Isolation** → Uses Difference of Gaussians (DoG) filtering to isolate the stone from background
+3. **Density Mapping** → Maps CT intensity (Hounsfield Units) to physical density (g/cm³)
+4. **Composition Classification** → Classifies regions into categories:
+   - **Pure Bacteria** (0.95 g/cm³) - Dark regions, low density
+   - **Bacteria-Rich** (1.15 g/cm³) - Bacterial biofilm dominant
+   - **Intergrowth** (1.45 g/cm³) - Mixed bacterial/crystalline
+   - **Whewellite-Rich** (1.75 g/cm³) - Crystalline dominant
+   - **Pure Whewellite** (2.23 g/cm³) - Bright regions, high density
+5. **Visualization** → Displays composition maps with customizable colormaps
+6. **Line Scan Analysis** → Interactive tool to analyze density profiles along user-defined lines
+7. **Export Results** → Save composition maps, line scans, and statistical reports
+
+### Key Features
+- **Interactive parameter tuning** - Adjust thresholds and filters in real-time
+- **Density calibration** - Automatic calibration from CT intensity to physical density
+- **Multiple visualization modes** - 12+ colormaps for different analysis needs
+- **Quantitative analysis** - Statistical summaries of compositional percentages
+- **Line profile analysis** - Detailed density profiles along custom paths
+- **Raman correlation** - Framework for correlating with Raman spectroscopy data
+
 ## Features
 
 ### CT Image Enhancement (`ct_enhancement.py`)
