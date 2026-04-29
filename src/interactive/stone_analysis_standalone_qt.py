@@ -7,8 +7,8 @@ Fast, responsive GUI with Qt widgets and embedded matplotlib canvases
 import sys
 import numpy as np
 import matplotlib
-matplotlib.use('Qt5Agg')
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+matplotlib.use('QtAgg')
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.colors import ListedColormap
 import cv2
@@ -21,7 +21,7 @@ import pandas as pd
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QHBoxLayout, QLabel, QPushButton, QSlider, QComboBox,
                                QGroupBox, QGridLayout, QSplitter, QFileDialog, QMessageBox,
-                               QTextEdit, QScrollArea)
+                               QTextEdit, QScrollArea, QSpinBox)
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QFont
 
@@ -64,7 +64,7 @@ class StoneAnalysisApp(QMainWindow):
         # Setup density calibration
         self.setup_density_calibration()
         
-        # Default parameters
+        # Default parameters (matching classic version)
         self.dog_sigma1 = 5.2
         self.dog_sigma2 = 3.0
         self.stone_threshold = 0.50
@@ -75,14 +75,14 @@ class StoneAnalysisApp(QMainWindow):
         self.intergrowth_threshold = 35
         self.whewellite_rich_threshold = 60
         
-        # Colormaps
+        # Colormaps (13 colors for zones 0-12)
         self.colormaps = {
-            'viridis': ['#440154', '#482475', '#414487', '#355f8d', '#2a788e', '#21908c', '#22a884', '#44bf70', '#7ad151', '#bddf26', '#f0f921', '#000000'],
-            'original': ['#000000', '#8B0000', '#B22222', '#DC143C', '#FF4500', '#FF6347', '#FFA500', '#FFD700', '#ADFF2F', '#7FFF00', '#00FF00', '#FFFFFF'],
-            'plasma': ['#0d0887', '#4b0c6b', '#6a00a8', '#8b0aa6', '#a53582', '#bc5090', '#d1719b', '#e594a7', '#f2b9b2', '#fcddbf', '#f0f921', '#000000'],
+            'viridis': ['#000000', '#440154', '#482475', '#414487', '#355f8d', '#2a788e', '#21908c', '#22a884', '#44bf70', '#7ad151', '#bddf26', '#f0f921', '#FFFFFF'],
+            'original': ['#000000', '#8B0000', '#B22222', '#DC143C', '#FF4500', '#FF6347', '#FFA500', '#FFD700', '#ADFF2F', '#7FFF00', '#00FF00', '#90EE90', '#FFFFFF'],
+            'plasma': ['#000000', '#0d0887', '#4b0c6b', '#6a00a8', '#8b0aa6', '#a53582', '#bc5090', '#d1719b', '#e594a7', '#f2b9b2', '#fcddbf', '#f0f921', '#FFFFFF'],
             'morphological': self.create_high_contrast_colormap(),
-            'thermal': ['#000080', '#000099', '#0000FF', '#0066FF', '#00CCFF', '#00FFCC', '#66FF66', '#CCFF00', '#FFCC00', '#FF6600', '#FF0000', '#FFFFFF'],
-            'geological': ['#000000', '#2C1810', '#4A2C2A', '#6B4423', '#8B5A2B', '#CD853F', '#DAA520', '#F0E68C', '#FFFACD', '#F5F5DC', '#FFFFF0', '#FFFFFF'],
+            'thermal': ['#000000', '#000080', '#000099', '#0000FF', '#0066FF', '#00CCFF', '#00FFCC', '#66FF66', '#CCFF00', '#FFCC00', '#FF6600', '#FF0000', '#FFFFFF'],
+            'geological': ['#000000', '#2C1810', '#4A2C2A', '#6B4423', '#8B5A2B', '#CD853F', '#DAA520', '#F0E68C', '#FFFACD', '#F5F5DC', '#FFFFF0', '#FFFEF0', '#FFFFFF'],
         }
         self.current_colormap = 'morphological'
         
@@ -90,7 +90,10 @@ class StoneAnalysisApp(QMainWindow):
         self.line_start = None
         self.line_end = None
         self.line_scan_data = None
+        self.line_scan_data_raw = None
+        self.line_scan_densities_raw = None
         self.click_count = 0
+        self.bin_size = 10  # Default bin size for line scan smoothing
         
         # Analysis results
         self.dog_enhanced = None
@@ -111,22 +114,53 @@ class StoneAnalysisApp(QMainWindow):
         
     def setup_density_calibration(self):
         """Setup Raman-based density calibration"""
-        self.density_categories = {
-            'Pure Bacteria': 0.95,
-            'Bacteria-Rich': 1.15,
-            'Intergrowth': 1.45,
-            'Whewellite-Rich': 1.75,
-            'Pure Whewellite': 2.23
+        # Component densities for 10-zone visual system (fine detail)
+        self.component_densities = {
+            '100% Bacteria': 0.95,      # Zone 1: Pure bacteria
+            '90% Bacteria': 1.05,       # Zone 2: 90% bacteria, 10% whewellite
+            '80% Bacteria': 1.15,       # Zone 3: 80% bacteria, 20% whewellite
+            '70% Bacteria': 1.25,       # Zone 4: 70% bacteria, 30% whewellite
+            '60% Bacteria': 1.35,       # Zone 5: 60% bacteria, 40% whewellite
+            '50/50 Mix': 1.45,          # Zone 6: 50% bacteria, 50% whewellite
+            '40% Bacteria': 1.55,       # Zone 7: 40% bacteria, 60% whewellite
+            '30% Bacteria': 1.65,       # Zone 8: 30% bacteria, 70% whewellite
+            '20% Bacteria': 1.75,       # Zone 9: 20% bacteria, 80% whewellite
+            '10% Bacteria': 1.85,       # Zone 10: 10% bacteria, 90% whewellite
+            'Pure Whewellite': 2.23,    # Zone 11: 0% bacteria, 100% whewellite
+            'Holes/Voids': 0.001       # Zone 12: Air density
         }
+        
+        # Determine background CT intensity
+        temp_stone_mask = self.create_initial_stone_mask()
+        background_pixels = self.ct_image[~temp_stone_mask]
+        
+        if len(background_pixels) > 0:
+            self.background_ct_intensity = np.median(background_pixels)
+        else:
+            self.background_ct_intensity = self.ct_image.min()
         
         self.ct_min = float(self.ct_image.min())
         self.ct_max = float(self.ct_image.max())
-        self.density_min = 0.95
+        self.density_min = 0.001
         self.density_max = 2.23
         
+    def create_initial_stone_mask(self):
+        """Create initial rough stone mask for background identification"""
+        ct_norm = (self.ct_image - self.ct_image.min()) / (self.ct_image.max() - self.ct_image.min())
+        
+        from skimage.filters import threshold_otsu
+        thresh = threshold_otsu(ct_norm)
+        initial_mask = ct_norm > thresh
+        
+        kernel = morphology.disk(5)
+        initial_mask = morphology.binary_opening(initial_mask, kernel)
+        initial_mask = morphology.remove_small_objects(initial_mask, min_size=10000)
+        
+        return initial_mask
+    
     def create_high_contrast_colormap(self):
-        """Create high contrast colormap"""
-        return ['#000000', '#8B0000', '#DC143C', '#FF4500', '#FFA500', '#FFD700', '#ADFF2F', '#00FF00', '#00FFFF', '#0000FF', '#FF00FF', '#FFFFFF']
+        """Create high contrast colormap with 13 colors for zones 0-12"""
+        return ['#000000', '#8B0000', '#DC143C', '#FF4500', '#FFA500', '#FFD700', '#ADFF2F', '#00FF00', '#00FFFF', '#0080FF', '#0000FF', '#FF00FF', '#FFFFFF']
         
     def setup_ui(self):
         """Setup the user interface"""
@@ -209,6 +243,22 @@ class StoneAnalysisApp(QMainWindow):
         clear_btn = QPushButton("Clear Line Scan")
         clear_btn.clicked.connect(self.clear_line)
         button_layout.addWidget(clear_btn)
+        
+        # Binning controls
+        bin_layout = QHBoxLayout()
+        bin_label = QLabel("Bin Size:")
+        self.bin_spinbox = QSpinBox()
+        self.bin_spinbox.setMinimum(1)
+        self.bin_spinbox.setMaximum(100)
+        self.bin_spinbox.setValue(self.bin_size)
+        self.bin_spinbox.setSuffix(" px")
+        bin_layout.addWidget(bin_label)
+        bin_layout.addWidget(self.bin_spinbox)
+        button_layout.addLayout(bin_layout)
+        
+        update_bin_btn = QPushButton("Update Binning")
+        update_bin_btn.clicked.connect(self.update_binning)
+        button_layout.addWidget(update_bin_btn)
         
         export_btn = QPushButton("Export Data")
         export_btn.clicked.connect(self.export_data)
@@ -354,23 +404,59 @@ class StoneAnalysisApp(QMainWindow):
         
     def apply_dog_filter(self):
         """Apply Difference of Gaussians filter"""
-        gaussian1 = filters.gaussian(self.ct_image, sigma=self.dog_sigma1)
-        gaussian2 = filters.gaussian(self.ct_image, sigma=self.dog_sigma2)
-        self.dog_enhanced = gaussian1 - gaussian2
-        self.dog_enhanced = np.clip(self.dog_enhanced, 0, None)
+        # Normalize CT image first (critical for consistent thresholding)
+        ct_norm = (self.ct_image - self.ct_image.min()) / (self.ct_image.max() - self.ct_image.min())
+        gaussian1 = filters.gaussian(ct_norm, sigma=self.dog_sigma1)
+        gaussian2 = filters.gaussian(ct_norm, sigma=self.dog_sigma2)
+        dog_result = gaussian1 - gaussian2
+        # Normalize DoG result to 0-1 range
+        self.dog_enhanced = (dog_result - dog_result.min()) / (dog_result.max() - dog_result.min())
         
     def create_stone_mask(self):
         """Create binary mask of stone region"""
-        dog_norm = (self.dog_enhanced - self.dog_enhanced.min()) / (self.dog_enhanced.max() - self.dog_enhanced.min())
-        binary = dog_norm > self.stone_threshold
+        # Normalize CT image
+        ct_norm = (self.ct_image - self.ct_image.min()) / (self.ct_image.max() - self.ct_image.min())
         
-        # Remove small objects
-        binary = morphology.remove_small_objects(binary, min_size=self.min_stone_size)
+        # Normalize and invert DoG (stone interior has low DoG values)
+        dog_norm = (self.dog_enhanced - self.dog_enhanced.min()) / (self.dog_enhanced.max() - self.dog_enhanced.min())
+        inverted_dog = 1.0 - dog_norm
+        
+        # Combined score: 70% CT intensity + 30% inverted DoG
+        stone_score = 0.7 * ct_norm + 0.3 * inverted_dog
+        
+        # Threshold to get candidates
+        stone_candidates = stone_score > self.stone_threshold
+        stone_candidates = morphology.remove_small_objects(stone_candidates, min_size=self.min_stone_size)
+        
+        # Select largest connected region
+        if np.sum(stone_candidates) > 0:
+            labeled_candidates = measure.label(stone_candidates)
+            regions = measure.regionprops(labeled_candidates)
+            largest_region = max(regions, key=lambda r: r.area)
+            stone_mask = labeled_candidates == largest_region.label
+        else:
+            stone_mask = np.zeros_like(self.ct_image, dtype=bool)
+        
+        # Morphological cleanup
+        kernel = morphology.disk(3)
+        stone_mask = morphology.binary_opening(stone_mask, kernel)
+        stone_mask = morphology.binary_closing(stone_mask, kernel)
         
         # Fill holes
-        binary = morphology.remove_small_holes(binary, area_threshold=self.hole_fill_size)
+        if self.hole_fill_size > 0:
+            filled_mask = ndimage.binary_fill_holes(stone_mask)
+            holes = filled_mask & ~stone_mask
+            
+            if np.sum(holes) > 0:
+                labeled_holes = measure.label(holes)
+                hole_regions = measure.regionprops(labeled_holes)
+                
+                for region in hole_regions:
+                    if region.area <= self.hole_fill_size:
+                        for coord in region.coords:
+                            stone_mask[coord[0], coord[1]] = True
         
-        self.stone_mask = binary
+        self.stone_mask = stone_mask
         
     def calculate_density_map(self):
         """Calculate density map from CT intensities"""
@@ -380,27 +466,59 @@ class StoneAnalysisApp(QMainWindow):
             (self.density_max - self.density_min)
             
     def classify_composition(self):
-        """Classify composition into categories"""
-        self.composition_map = np.zeros_like(self.ct_image, dtype=int)
+        """Classify composition into 10-zone system for fine visual detail"""
+        self.composition_map = np.zeros_like(self.ct_image, dtype=np.uint8)
         
         if not np.any(self.stone_mask):
             return
-            
-        stone_densities = self.density_map[self.stone_mask]
-        density_range = stone_densities.max() - stone_densities.min()
         
-        # Calculate percentile thresholds
-        bacteria_val = stone_densities.min() + (self.bacteria_threshold / 100.0) * density_range
-        bacteria_rich_val = stone_densities.min() + (self.bacteria_rich_threshold / 100.0) * density_range
-        intergrowth_val = stone_densities.min() + (self.intergrowth_threshold / 100.0) * density_range
-        whewellite_rich_val = stone_densities.min() + (self.whewellite_rich_threshold / 100.0) * density_range
+        # Identify holes within the stone (CT intensity ≤ background)
+        hole_mask = self.stone_mask & (self.ct_image <= self.background_ct_intensity)
         
-        # Classify
-        self.composition_map[self.stone_mask] = 5  # Pure Whewellite (default)
-        self.composition_map[(self.stone_mask) & (self.density_map < whewellite_rich_val)] = 4
-        self.composition_map[(self.stone_mask) & (self.density_map < intergrowth_val)] = 3
-        self.composition_map[(self.stone_mask) & (self.density_map < bacteria_rich_val)] = 2
-        self.composition_map[(self.stone_mask) & (self.density_map < bacteria_val)] = 1
+        # Get stone intensities excluding holes
+        stone_only_mask = self.stone_mask & ~hole_mask
+        
+        if np.sum(stone_only_mask) == 0:
+            self.composition_map[hole_mask] = 12  # Assign holes to zone 12
+            return
+        
+        stone_intensities = self.ct_image[stone_only_mask]
+        min_intensity = np.min(stone_intensities)
+        max_intensity = np.max(stone_intensities)
+        range_span = max_intensity - min_intensity
+        
+        # Calculate threshold values for 10-zone system
+        thresholds = [
+            min_intensity + 0.005 * range_span,  # 0.5% = 100% bacteria threshold
+            min_intensity + 0.015 * range_span,  # 1.5% = 90% bacteria
+            min_intensity + 0.035 * range_span,  # 3.5% = 80% bacteria
+            min_intensity + 0.07 * range_span,   # 7% = 70% bacteria
+            min_intensity + 0.12 * range_span,   # 12% = 60% bacteria
+            min_intensity + 0.20 * range_span,   # 20% = 50/50 mix
+            min_intensity + 0.30 * range_span,   # 30% = 40% bacteria
+            min_intensity + 0.42 * range_span,   # 42% = 30% bacteria
+            min_intensity + 0.55 * range_span,   # 55% = 20% bacteria
+            min_intensity + 0.70 * range_span    # 70% = 10% bacteria
+        ]
+        
+        # Assign zones for stone areas (zones 1-11)
+        self.composition_map[stone_only_mask] = 6  # Default to 50/50 mix
+        
+        # Zone assignments based on intensity ranges
+        self.composition_map[stone_only_mask & (self.ct_image <= thresholds[0])] = 1  # 100% bacteria
+        self.composition_map[stone_only_mask & (self.ct_image > thresholds[0]) & (self.ct_image <= thresholds[1])] = 2  # 90% bacteria
+        self.composition_map[stone_only_mask & (self.ct_image > thresholds[1]) & (self.ct_image <= thresholds[2])] = 3  # 80% bacteria
+        self.composition_map[stone_only_mask & (self.ct_image > thresholds[2]) & (self.ct_image <= thresholds[3])] = 4  # 70% bacteria
+        self.composition_map[stone_only_mask & (self.ct_image > thresholds[3]) & (self.ct_image <= thresholds[4])] = 5  # 60% bacteria
+        self.composition_map[stone_only_mask & (self.ct_image > thresholds[4]) & (self.ct_image <= thresholds[5])] = 6  # 50/50 mix
+        self.composition_map[stone_only_mask & (self.ct_image > thresholds[5]) & (self.ct_image <= thresholds[6])] = 7  # 40% bacteria
+        self.composition_map[stone_only_mask & (self.ct_image > thresholds[6]) & (self.ct_image <= thresholds[7])] = 8  # 30% bacteria
+        self.composition_map[stone_only_mask & (self.ct_image > thresholds[7]) & (self.ct_image <= thresholds[8])] = 9  # 20% bacteria
+        self.composition_map[stone_only_mask & (self.ct_image > thresholds[8]) & (self.ct_image <= thresholds[9])] = 10 # 10% bacteria
+        self.composition_map[stone_only_mask & (self.ct_image > thresholds[9])] = 11  # Pure whewellite
+        
+        # Assign holes to zone 12
+        self.composition_map[hole_mask] = 12
         
     def update_visualizations(self):
         """Update all visualization canvases"""
@@ -427,7 +545,8 @@ class StoneAnalysisApp(QMainWindow):
         self.canvas_mask.draw()
         
         # Density Map
-        self.canvas_density.axes.clear()
+        self.canvas_density.fig.clear()
+        self.canvas_density.axes = self.canvas_density.fig.add_subplot(111)
         im = self.canvas_density.axes.imshow(self.density_map, cmap='viridis', vmin=self.density_min, vmax=self.density_max)
         self.canvas_density.axes.set_title('Density Map (g/cm³)')
         self.canvas_density.axes.axis('off')
@@ -437,8 +556,8 @@ class StoneAnalysisApp(QMainWindow):
         # Composition Map
         self.canvas_comp.axes.clear()
         colors = self.colormaps[self.current_colormap]
-        cmap = ListedColormap(colors[:6])
-        self.canvas_comp.axes.imshow(self.composition_map, cmap=cmap, vmin=0, vmax=5)
+        cmap = ListedColormap(colors)
+        self.canvas_comp.axes.imshow(self.composition_map, cmap=cmap, vmin=0, vmax=12)
         self.canvas_comp.axes.set_title('Composition Zones (click 2 points for line scan)')
         self.canvas_comp.axes.axis('off')
         
@@ -475,7 +594,7 @@ class StoneAnalysisApp(QMainWindow):
                 self.log_status(f"Line end: ({x}, {y})")
                 self.extract_line_scan()
                 self.update_visualizations()
-                
+    
     def extract_line_scan(self):
         """Extract line scan data between two points"""
         if self.line_start is None or self.line_end is None:
@@ -488,32 +607,69 @@ class StoneAnalysisApp(QMainWindow):
         x_coords = np.linspace(x0, x1, length)
         y_coords = np.linspace(y0, y1, length)
         
-        # Extract data
-        self.line_scan_data = ndimage.map_coordinates(self.composition_map, [y_coords, x_coords], order=0)
-        self.line_scan_densities = ndimage.map_coordinates(self.density_map, [y_coords, x_coords], order=1)
+        # Extract raw data
+        self.line_scan_data_raw = ndimage.map_coordinates(self.composition_map, [y_coords, x_coords], order=0)
+        self.line_scan_densities_raw = ndimage.map_coordinates(self.density_map, [y_coords, x_coords], order=1)
         
-        self.log_status(f"Line scan extracted: {length} points")
+        # Apply binning
+        self.apply_binning()
+        
+        self.log_status(f"Line scan extracted: {length} points, binned to {len(self.line_scan_data)} points")
         
     def update_line_scan_plot(self):
-        """Update the line scan visualization"""
-        self.canvas_line.axes.clear()
+        """Update the line scan visualization with composition and density profiles"""
+        self.canvas_line.fig.clear()
         
         if self.line_scan_densities is None:
-            self.canvas_line.axes.text(0.5, 0.5, 'Click 2 points on\nComposition Zones', 
-                                      ha='center', va='center', transform=self.canvas_line.axes.transAxes)
-            self.canvas_line.axes.axis('off')
+            ax = self.canvas_line.fig.add_subplot(111)
+            ax.text(0.5, 0.5, 'Click 2 points on\nComposition Zones', 
+                   ha='center', va='center', transform=ax.transAxes)
+            ax.axis('off')
             self.canvas_line.draw()
             return
-            
+        
+        # Create two subplots
+        ax1 = self.canvas_line.fig.add_subplot(211)
+        ax2 = self.canvas_line.fig.add_subplot(212)
+        
         x = np.arange(len(self.line_scan_densities))
+        colors = self.colormaps[self.current_colormap]
         
-        self.canvas_line.axes.plot(x, self.line_scan_densities, 'b-', linewidth=2)
-        self.canvas_line.axes.set_xlabel('Position along line')
-        self.canvas_line.axes.set_ylabel('Density (g/cm³)')
-        self.canvas_line.axes.set_title('Line Scan Density Profile')
-        self.canvas_line.axes.grid(True, alpha=0.3)
-        self.canvas_line.axes.set_ylim(self.density_min, self.density_max)
+        # Top plot: Composition profile with colored background
+        ax1.plot(x, self.line_scan_data, 'o-', linewidth=2, markersize=4, color='blue')
         
+        # Color background according to composition zones
+        for i in range(len(self.line_scan_data)):
+            comp_val = int(self.line_scan_data[i])
+            if comp_val < len(colors):
+                ax1.axvspan(i-0.5, i+0.5, alpha=0.3, color=colors[comp_val])
+        
+        ax1.set_ylabel('Zone')
+        ax1.set_ylim(0.5, 12.5)
+        ax1.set_yticks([1, 3, 5, 7, 9, 11])
+        ax1.set_yticklabels(['100%\nBact', '80%\nBact', '60%\nBact', '40%\nBact', '20%\nBact', 'Pure\nWhew'])
+        ax1.grid(True, alpha=0.3, axis='x')
+        ax1.set_title(f'Composition Profile (Bin={self.bin_size}px, {len(self.line_scan_data)} bins)')
+        ax1.set_xticklabels([])
+        
+        # Bottom plot: Density profile
+        ax2.plot(x, self.line_scan_densities, 'o-', linewidth=2, markersize=4, color='red')
+        ax2.fill_between(x, self.line_scan_densities, alpha=0.3, color='red')
+        
+        # Add density threshold lines
+        ax2.axhline(0.95, color='gray', linestyle='--', alpha=0.5, linewidth=1)
+        ax2.axhline(1.15, color='gray', linestyle='--', alpha=0.5, linewidth=1)
+        ax2.axhline(1.45, color='gray', linestyle='--', alpha=0.5, linewidth=1)
+        ax2.axhline(1.75, color='gray', linestyle='--', alpha=0.5, linewidth=1)
+        ax2.axhline(2.23, color='gray', linestyle='--', alpha=0.5, linewidth=1)
+        
+        ax2.set_xlabel('Position along line (bins)')
+        ax2.set_ylabel('Density (g/cm³)')
+        ax2.set_title('Density Profile')
+        ax2.grid(True, alpha=0.3)
+        ax2.set_ylim(0.8, 2.4)
+        
+        self.canvas_line.fig.tight_layout()
         self.canvas_line.draw()
         
     def change_colormap(self, colormap_name):
@@ -547,12 +703,70 @@ class StoneAnalysisApp(QMainWindow):
         self.recalculate_analysis()
         self.log_status("Parameters reset to defaults")
         
+    def apply_binning(self):
+        """Apply binning to raw line scan data"""
+        if self.line_scan_data_raw is None:
+            return
+        
+        bin_size = self.bin_size
+        n_points = len(self.line_scan_data_raw)
+        
+        if bin_size >= n_points:
+            # If bin size is larger than data, just average everything
+            self.line_scan_data = np.array([np.median(self.line_scan_data_raw)])
+            self.line_scan_densities = np.array([np.mean(self.line_scan_densities_raw)])
+            return
+        
+        # Calculate number of bins
+        n_bins = n_points // bin_size
+        
+        # Bin the data
+        binned_composition = []
+        binned_density = []
+        
+        for i in range(n_bins):
+            start_idx = i * bin_size
+            end_idx = start_idx + bin_size
+            
+            # Use mode for composition (most common zone)
+            bin_comp = self.line_scan_data_raw[start_idx:end_idx]
+            mode_comp = np.median(bin_comp)  # Use median as approximation of mode
+            binned_composition.append(mode_comp)
+            
+            # Use mean for density
+            bin_dens = self.line_scan_densities_raw[start_idx:end_idx]
+            binned_density.append(np.mean(bin_dens))
+        
+        # Handle remaining points
+        if n_points % bin_size != 0:
+            start_idx = n_bins * bin_size
+            bin_comp = self.line_scan_data_raw[start_idx:]
+            bin_dens = self.line_scan_densities_raw[start_idx:]
+            binned_composition.append(np.median(bin_comp))
+            binned_density.append(np.mean(bin_dens))
+        
+        self.line_scan_data = np.array(binned_composition)
+        self.line_scan_densities = np.array(binned_density)
+    
+    def update_binning(self):
+        """Update binning from spinbox value"""
+        self.bin_size = self.bin_spinbox.value()
+        
+        if self.line_scan_data_raw is not None:
+            self.apply_binning()
+            self.update_line_scan_plot()
+            self.log_status(f"Binning updated: {self.bin_size} pixels -> {len(self.line_scan_data)} bins")
+        else:
+            self.log_status("No line scan data to bin. Draw a line first.")
+    
     def clear_line(self):
         """Clear the line scan"""
         self.line_start = None
         self.line_end = None
         self.line_scan_data = None
         self.line_scan_densities = None
+        self.line_scan_data_raw = None
+        self.line_scan_densities_raw = None
         self.click_count = 0
         self.update_visualizations()
         self.log_status("Line scan cleared")
